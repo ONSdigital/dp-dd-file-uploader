@@ -1,30 +1,17 @@
-dp-repo-template
+dp-dd-file-uploader
 ================
 
-A template git repository for DP repos:
-
-* Standardised files for CHANGELOG, CONTRIBUTING, LICENSE and README
-* Default template for GitHub pull requests
-
-### Getting started
-
-After creating a new repository on GitHub, use these commands to initialise
-it using this repository as a template:
-
-* `git clone git@github.com:ONSdigital/dp-repo-template dp-new-repo-name`
-* `cd dp-new-repo-name`
-* `git remote set-url origin git@github.com:ONSdigital/dp-new-repo-name`
-
-Remember to update the [README](README.md) and [CHANGELOG](CHANGELOG.md) files.
+A web UI for uploading files into the data discovery project.
 
 ### Configuration
 
-An overview of the configuration options available, either as a table of
-environment variables, or with a link to a configuration guide.
-
 | Environment variable | Default | Description
 | -------------------- | ------- | -----------
-| BIND_ADDR            | :8080   | The host and port to bind to
+| BIND_ADDR            | :20019           | The host and port to bind to
+| KAFKA_ADDR           | localhost:9092   | The address of the Kafka instance
+| TOPIC_NAME           | dp-csv-splitter  | The name of the topic to send file uploaded events to
+| AWS_REGION           | eu-west-1        | The AWS region the S3 bucket is hosted in
+| S3_BUCKET            | file-uploaded    | The name of the S3 bucket to store files.
 
 ### Contributing
 
