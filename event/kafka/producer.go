@@ -45,9 +45,6 @@ func (kafka Producer) FileUploaded(event event.FileUploaded) error {
 	}
 
 	_, _, err = kafka.Producer.SendMessage(producerMsg)
-	if err != nil {
-		return err
-	}
 
-	return nil
+	return err
 }
