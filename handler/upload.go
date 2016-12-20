@@ -37,17 +37,30 @@ func Upload(w http.ResponseWriter, req *http.Request) {
 	file, header, err := req.FormFile("file")
 	if err != nil {
 		log.Error(err, log.Data{"message": FailedToReadRequest})
-		response.WriteJSON(w, Response{Message: FailedToReadRequest}, http.StatusBadRequest)
+		err = response.WriteJSON(w, Response{Message: FailedToReadRequest}, http.StatusBadRequest)
+		if err != nil {
+			log.Error(err, log.Data{"message": "Failed to write JSON response"})
+			w.WriteHeader(http.StatusBadRequest)
+		}
 		return
 	}
-	defer file.Close()
+	defer func() {
+		err = file.Close()
+		if err != nil {
+			log.Error(err, nil)
+		}
+	}()
 
 	log.Debug("Attempting to read file from request", log.Data{"filename": header.Filename})
 
 	err = FileStore.SaveFile(file, header.Filename)
 	if err != nil {
 		log.Error(err, log.Data{"message": FailedToSaveFile})
-		response.WriteJSON(w, Response{Message: FailedToSaveFile}, http.StatusInternalServerError)
+		err = response.WriteJSON(w, Response{Message: FailedToSaveFile}, http.StatusInternalServerError)
+		if err != nil {
+			log.Error(err, log.Data{"message": "Failed to write JSON response"})
+			w.WriteHeader(http.StatusInternalServerError)
+		}
 		return
 	}
 
@@ -58,8 +71,15 @@ func Upload(w http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		log.Error(err, log.Data{"message": FailedToSendEvent})
 		response.WriteJSON(w, Response{Message: FailedToSendEvent}, http.StatusInternalServerError)
+		if err != nil {
+			log.Error(err, log.Data{"message": "Failed to write JSON response"})
+			w.WriteHeader(http.StatusInternalServerError)
+		}
 		return
 	}
 
-	render.Home(w)
+	err = render.Home(w)
+	if err != nil {
+		log.Error(err, log.Data{"message": "Failed to render home page"})
+	}
 }

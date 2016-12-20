@@ -12,6 +12,6 @@ type renderer interface {
 
 var Renderer renderer
 
-func Home(w io.Writer) {
-	Renderer.HTML(w, http.StatusOK, "index", "")
+func Home(w io.Writer) error {
+	return Renderer.HTML(w, http.StatusOK, "index", "")
 }
