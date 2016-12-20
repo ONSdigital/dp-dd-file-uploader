@@ -19,7 +19,7 @@ func (fileStore *DummyFileStore) SaveFile(reader io.Reader, filename string) err
 
 	fileStore.Invocations++
 
-	log.Debug("Save file called.", log.Data{})
+	log.Debug("Save file called.", nil)
 
 	if strings.Contains(filename, "fileSaveError") {
 		return errors.New("Error saving file")

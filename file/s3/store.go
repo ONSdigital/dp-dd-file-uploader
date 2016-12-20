@@ -23,7 +23,7 @@ type FileStore struct {
 	BucketName string
 }
 
-// SaveFile ...
+// SaveFile sends the file from the given reader to S3 under the given filename.
 func (s3 FileStore) SaveFile(reader io.Reader, filename string) error {
 
 	result, err := s3.Uploader.Upload(&s3manager.UploadInput{

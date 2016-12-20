@@ -25,12 +25,12 @@ var FailedToSendEvent string = "Failed to send file uploaded event."
 func Upload(w http.ResponseWriter, req *http.Request) {
 
 	if FileStore == nil {
-		log.Error(errors.New("The FileStore dependency has not been configured"), log.Data{})
+		log.Error(errors.New("The FileStore dependency has not been configured"), nil)
 		return
 	}
 
 	if EventProducer == nil {
-		log.Error(errors.New("The EventProducer dependency has not been configured"), log.Data{})
+		log.Error(errors.New("The EventProducer dependency has not been configured"), nil)
 		return
 	}
 
