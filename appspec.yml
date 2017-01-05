@@ -6,9 +6,9 @@ files:
   - source: scripts/codedeploy
     destination: /home/${CODEDEPLOY_USER}/dp-dd-file-uploader
 permissions:
-  object: /home/${CODEDEPLY_USER}/dp-dd-file-uploader
-  owner: ${CODEDEPLOY_USER}
-  group: ${CODEDEPLOY_USER}
+  - object: /home/${CODEDEPLY_USER}/dp-dd-file-uploader
+    owner: ${CODEDEPLOY_USER}
+    group: ${CODEDEPLOY_USER}
 hooks:
   ApplicationStop:
     - location: scripts/codedeploy/application-stop.sh
