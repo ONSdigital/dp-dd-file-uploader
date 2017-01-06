@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/ONSdigital/dp-dd-file-uploader/assets"
 	"github.com/ONSdigital/dp-dd-file-uploader/config"
 	"github.com/ONSdigital/dp-dd-file-uploader/event/kafka"
 	"github.com/ONSdigital/dp-dd-file-uploader/file/s3"
@@ -13,6 +14,7 @@ import (
 	"github.com/gorilla/pat"
 	"github.com/justinas/alice"
 	unrolled "github.com/unrolled/render"
+	"html/template"
 	"net/http"
 	"os"
 	"time"
@@ -24,8 +26,20 @@ func main() {
 	log.Namespace = "dp-dd-file-uploader"
 
 	var err error
+
 	render.Renderer = unrolled.New()
 	handlers.FileStore = s3.NewFileStore(config.AWScfg)
+
+	render.Renderer = unrolled.New(unrolled.Options{
+		Asset:      assets.Asset,
+		AssetNames: assets.AssetNames,
+		Funcs: []template.FuncMap{{
+			"safeHTML": func(s string) template.HTML {
+				return template.HTML(s)
+			},
+		}},
+	})
+
 	handlers.EventProducer, err = kafka.NewProducer(config.KafkaAddr, config.TopicName)
 	if err != nil {
 		log.Error(err, nil)

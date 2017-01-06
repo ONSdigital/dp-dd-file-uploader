@@ -14,6 +14,8 @@ import (
 	"net/http/httptest"
 	"strings"
 	"testing"
+	"github.com/ONSdigital/dp-dd-file-uploader/assets"
+	"html/template"
 )
 
 var exampleMultipartBody string = `
@@ -37,7 +39,13 @@ Upload
 func TestUploadHandler(t *testing.T) {
 
 	render.Renderer = unrolled.New(unrolled.Options{
-		Directory: "../templates",
+		Asset:      assets.Asset,
+		AssetNames: assets.AssetNames,
+		Funcs: []template.FuncMap{{
+			"safeHTML": func(s string) template.HTML {
+				return template.HTML(s)
+			},
+		}},
 	})
 
 	Convey("Handler returns 400 status code response when request body is empty", t, func() {

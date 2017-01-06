@@ -1,4 +1,5 @@
 build:
+	govendor generate
 	go build -o build/dp-dd-file-uploader
 
 debug: build
