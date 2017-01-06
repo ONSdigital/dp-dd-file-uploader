@@ -16,6 +16,8 @@ import (
 	"net/http"
 	"os"
 	"time"
+	"github.com/ONSdigital/dp-dd-file-uploader/assets"
+	"html/template"
 )
 
 func main() {
@@ -29,7 +31,16 @@ func main() {
 	}
 
 	var err error
-	render.Renderer = unrolled.New()
+	render.Renderer = unrolled.New(unrolled.Options{
+		Asset:         assets.Asset,
+		AssetNames:    assets.AssetNames,
+		Funcs: []template.FuncMap{{
+			"safeHTML": func(s string) template.HTML {
+				return template.HTML(s)
+			},
+		}},
+	})
+
 	handlers.FileStore = s3.NewFileStore(config.AWSRegion, config.S3Bucket)
 	handlers.EventProducer, err = kafka.NewProducer(config.KafkaAddr, config.TopicName)
 	if err != nil {
