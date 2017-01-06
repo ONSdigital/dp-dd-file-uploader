@@ -7,29 +7,29 @@ import (
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager/s3manageriface"
 	"io"
+	"github.com/ONSdigital/dp-dd-file-uploader/config"
 )
 
 // NewFileStore factory method to initialise AWS S3 classes.
-func NewFileStore(AWSRegion string, s3Bucket string) *FileStore {
+func NewFileStore(awsCfg *config.AWSConfig) *FileStore {
 	return &FileStore{
-		Uploader:   s3manager.NewUploader(session.New(&aws.Config{Region: aws.String(AWSRegion)})),
-		BucketName: s3Bucket,
+		Uploader:   s3manager.NewUploader(session.New(&aws.Config{Region: awsCfg.GetRegion()})),
+		AWSConfig: awsCfg,
 	}
 }
 
 // FileStore S3 implementation
 type FileStore struct {
-	Uploader   s3manageriface.UploaderAPI
-	BucketName string
+	Uploader  s3manageriface.UploaderAPI
+	AWSConfig *config.AWSConfig
 }
 
 // SaveFile sends the file from the given reader to S3 under the given filename.
-func (s3 FileStore) SaveFile(reader io.Reader, filename string) error {
-
-	result, err := s3.Uploader.Upload(&s3manager.UploadInput{
+func (fs FileStore) SaveFile(reader io.Reader, filename string) error {
+	result, err := fs.Uploader.Upload(&s3manager.UploadInput{
 		Body:   reader,
-		Bucket: aws.String(s3.BucketName),
-		Key:    aws.String(filename),
+		Bucket: fs.AWSConfig.GetBucketName(),
+		Key:    fs.AWSConfig.GetFilePath(filename),
 	})
 	if err != nil {
 		log.Error(err, log.Data{"message": "Failed to upload"})
@@ -39,6 +39,5 @@ func (s3 FileStore) SaveFile(reader io.Reader, filename string) error {
 	log.Debug("Upload successful", log.Data{
 		"uploadLocation": result.Location,
 	})
-
 	return nil
 }

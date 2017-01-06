@@ -9,6 +9,7 @@ import (
 	"github.com/ONSdigital/go-ns/log"
 	"net/http"
 	"time"
+	"github.com/ONSdigital/dp-dd-file-uploader/config"
 )
 
 var FileStore file.Store
@@ -67,6 +68,7 @@ func Upload(w http.ResponseWriter, req *http.Request) {
 	err = EventProducer.FileUploaded(event.FileUploaded{
 		Filename: header.Filename,
 		Time:     time.Now().UTC().Unix(),
+		S3Path: config.AWScfg.GetS3FileURL(header.Filename),
 	})
 	if err != nil {
 		log.Error(err, log.Data{"message": FailedToSendEvent})

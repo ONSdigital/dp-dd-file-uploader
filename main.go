@@ -23,14 +23,9 @@ func main() {
 	config.Load()
 	log.Namespace = "dp-dd-file-uploader"
 
-	bindAddr := os.Getenv("BIND_ADDR")
-	if len(bindAddr) == 0 {
-		bindAddr = config.BindAddr
-	}
-
 	var err error
 	render.Renderer = unrolled.New()
-	handlers.FileStore = s3.NewFileStore(config.AWSRegion, config.S3Bucket)
+	handlers.FileStore = s3.NewFileStore(config.AWScfg)
 	handlers.EventProducer, err = kafka.NewProducer(config.KafkaAddr, config.TopicName)
 	if err != nil {
 		log.Error(err, nil)
@@ -48,10 +43,10 @@ func main() {
 	router.Get("/", handlers.Home)
 	router.Post("/", handlers.Upload)
 
-	log.Debug("Starting server", log.Data{"bind_addr": bindAddr})
+	log.Debug("Starting server", log.Data{"bind_addr": config.BindAddr})
 
 	server := &http.Server{
-		Addr:         bindAddr,
+		Addr:         config.BindAddr,
 		Handler:      alice,
 		ReadTimeout:  5 * time.Second,
 		WriteTimeout: 10 * time.Second,
