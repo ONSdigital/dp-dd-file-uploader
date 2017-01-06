@@ -1,6 +1,7 @@
 package main
 
 import (
+	"github.com/ONSdigital/dp-dd-file-uploader/assets"
 	"github.com/ONSdigital/dp-dd-file-uploader/config"
 	"github.com/ONSdigital/dp-dd-file-uploader/event/kafka"
 	"github.com/ONSdigital/dp-dd-file-uploader/file/s3"
@@ -13,11 +14,10 @@ import (
 	"github.com/gorilla/pat"
 	"github.com/justinas/alice"
 	unrolled "github.com/unrolled/render"
+	"html/template"
 	"net/http"
 	"os"
 	"time"
-	"github.com/ONSdigital/dp-dd-file-uploader/assets"
-	"html/template"
 )
 
 func main() {
@@ -32,8 +32,8 @@ func main() {
 
 	var err error
 	render.Renderer = unrolled.New(unrolled.Options{
-		Asset:         assets.Asset,
-		AssetNames:    assets.AssetNames,
+		Asset:      assets.Asset,
+		AssetNames: assets.AssetNames,
 		Funcs: []template.FuncMap{{
 			"safeHTML": func(s string) template.HTML {
 				return template.HTML(s)
