@@ -10,6 +10,7 @@ import (
 	"net/http"
 	"time"
 	"github.com/ONSdigital/dp-dd-file-uploader/config"
+	"fmt"
 )
 
 var FileStore file.Store
@@ -65,11 +66,14 @@ func Upload(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	err = EventProducer.FileUploaded(event.FileUploaded{
-		Filename: header.Filename,
+	event := event.FileUploaded{
 		Time:     time.Now().UTC().Unix(),
-		S3Path: config.AWScfg.GetS3FileURL(header.Filename),
-	})
+		S3URL: config.AWScfg.GetS3FileURL(header.Filename),
+	}
+
+	log.Debug("I AM SENDING " + fmt.Sprintf("%+v", event), nil)
+
+	err = EventProducer.FileUploaded(event)
 	if err != nil {
 		log.Error(err, log.Data{"message": FailedToSendEvent})
 		response.WriteJSON(w, Response{Message: FailedToSendEvent}, http.StatusInternalServerError)
