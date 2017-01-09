@@ -15,6 +15,7 @@ const kafkaAddrKey = "KAFKA_ADDR"
 const awsRegionKey = "AWS_REGION"
 const topicNameKey = "TOPIC_NAME"
 const s3URLKey = "S3_URL"
+const awsConfigKey = "awsConfig"
 
 // BindAddr the address to bind to.
 var BindAddr = ":20019"
@@ -35,9 +36,9 @@ var s3URL, _ = url.Parse("s3://dp-csv-splitter")
 
 type AWSConfig struct {
 	bucketName *string
-	path string
-	url *url.URL
-	awsRegion *string
+	path       string
+	url        *url.URL
+	awsRegion  *string
 }
 
 func extractURLPath(url *url.URL) (string, error) {
@@ -67,7 +68,7 @@ func (cfg *AWSConfig) GetRegion() *string {
 }
 
 func (cfg *AWSConfig) ToString() string {
-	return fmt.Sprintf("{bucketName=%s, path=%s, region=%s, url=%s}", *cfg.bucketName,  cfg.path,  *cfg.awsRegion,  cfg.url)
+	return fmt.Sprintf("{bucketName=%s, path=%s, region=%s, url=%s}", *cfg.bucketName, cfg.path, *cfg.awsRegion, cfg.url)
 }
 
 func NewAWSConfig(awsRegion string, url *url.URL) *AWSConfig {
@@ -116,6 +117,6 @@ func Load() {
 		bindAddrKey:  BindAddr,
 		kafkaAddrKey: KafkaAddr,
 		topicNameKey: TopicName,
-		"awsConfig": AWScfg.ToString(),
+		awsConfigKey: AWScfg.ToString(),
 	})
 }

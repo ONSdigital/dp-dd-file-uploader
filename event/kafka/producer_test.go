@@ -21,7 +21,6 @@ func TestProcessor(t *testing.T) {
 
 	kafkaTopicName := "fileUploaded"
 
-	filename := "exampleFilename.csv"
 	time := time.Now()
 
 	mockProducer := mocks.NewSyncProducer(t, kafkaConfig)
@@ -30,9 +29,6 @@ func TestProcessor(t *testing.T) {
 		var event event.FileUploaded
 		json.Unmarshal(val, &event)
 
-		if event.Filename != filename {
-			return errors.New("Filename was not added to the message.")
-		}
 		if event.Time != time.UTC().Unix() {
 			return errors.New("Time was not added to the message.")
 		}
@@ -49,8 +45,7 @@ func TestProcessor(t *testing.T) {
 
 		Convey("When the producer is called", func() {
 			eventProducer.FileUploaded(event.FileUploaded{
-				Filename: filename,
-				Time:     time.UTC().Unix(),
+				Time: time.UTC().Unix(),
 			})
 		})
 	})
