@@ -26,6 +26,12 @@ var AWSRegion = "eu-west-1"
 // TopicName the name of the Kafka topic to send messages to.
 var TopicName = "file-uploaded"
 
+// AWSAccessKey the AWS access key
+var AWSAccessKey = ""
+
+// AWSSecretKey the AWS secret key
+var AWSSecretKey = ""
+
 func init() {
 	if bindAddrEnv := os.Getenv(bindAddrKey); len(bindAddrEnv) > 0 {
 		BindAddr = bindAddrEnv
@@ -45,6 +51,14 @@ func init() {
 
 	if topicNameEnv := os.Getenv(topicNameKey); len(topicNameEnv) > 0 {
 		TopicName = topicNameEnv
+	}
+
+	if accessKeyEnv := os.Getenv("ACCESS_KEY"); len(accessKeyEnv) > 0 {
+		AWSAccessKey = accessKeyEnv
+	}
+
+	if secretKeyEnv := os.Getenv("SECRET_KEY"); len(secretKeyEnv) > 0 {
+		AWSSecretKey = secretKeyEnv
 	}
 }
 

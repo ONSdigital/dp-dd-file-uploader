@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html>
+
+<head>
+    <link rel="stylesheet" href="https://cdn.ons.gov.uk/sixteens/00c4260/css/main.css">
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.1.4/jquery.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.11.4/jquery-ui.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/blueimp-file-upload/9.5.7/jquery.fileupload.js"></script>
+</head>
+<body>
+
+<script type="text/javascript">
+// Requires jQuery and blueimp's jQuery.fileUpload
+
+// Configuration
+var bucket = 'dp-csv-splitter';
+// client-side validation by fileUpload should match the policy
+// restrictions so that the checks fail early
+var acceptFileType = /.*/i;
+var maxFileSize = 1000000;
+// The URL to your endpoint that maps to s3Credentials function
+var credentialsUrl = '/upload_credentials';
+
+window.initS3FileUpload = function($fileInput) {
+  $fileInput.fileupload({
+    acceptFileTypes: acceptFileType,
+    maxFileSize: maxFileSize,
+    url: 'https://' + bucket + '.s3.amazonaws.com',
+    paramName: 'file',
+    add: s3add,
+    dataType: 'xml',
+    done: onS3Done
+  });
+};
+
+// This function retrieves s3 parameters from our server API and appends them
+// to the upload form.
+function s3add(e, data) {
+  var filename = data.files[0].name;
+  var params = [];
+  $.ajax({
+    url: credentialsUrl,
+    type: 'GET',
+    dataType: 'json',
+    data: {
+      filename: filename
+    },
+    success: function(s3Data) {
+      data.formData = s3Data.params;
+      data.submit();
+    }
+  });
+  return params;
+};
+
+// Example of extracting information about the uploaded file
+// Typically, after uploading a file to S3, you want to register that file with
+// your backend. Remember that we did not persist anything before the upload.
+function onS3Done(e, data) {
+  var s3Url = $(data.jqXHR.responseXML).find('Location').text();
+  var s3Key = $(data.jqXHR.responseXML).find('Key').text();
+};
+
+</script>
+
+<script>
+  $(function() {
+    initS3FileUpload($('#fileInput'));
+  });
+</script>
+
+<div class="wrapper">
+    <div class="header height--9 col-wrap">
+        <div class="col col--lg-one-third col--md-one-third">
+            <a href="/">
+                <img class="main-logo" src="https://www.ons.gov.uk/assets/img/ons-logo.svg" alt="Office for National Statistics">
+            </a>
+        </div>
+    </div>
+</div>
+<div class="background--astral">
+    <div class="wrapper">
+            <div class="col-wrap">
+                <div class="col">
+                    <h1>Data file upload</h1>
+                </div>
+            </div>
+        </div>
+</div>
+
+<div class="wrapper">
+    <div class="col-wrap">
+        <div class="col">
+            <form action="" method="post" enctype="multipart/form-data">
+                <h3>Select file to upload</h3>
+                <p><input type="file" name="file" id="fileInput"></p>
+            </form>
+        </div>
+    </div>
+</div>
+
+</body>
+</html>

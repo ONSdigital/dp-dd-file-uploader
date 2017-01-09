@@ -56,8 +56,10 @@ func main() {
 	).Then(router)
 
 	router.Get("/healthcheck", healthcheck.Handler)
-	router.Get("/", handlers.Home)
-	router.Post("/", handlers.Upload)
+	router.Get("/upload_credentials", handlers.GetUploadCredentials)
+	router.NewRoute().PathPrefix("/upload/").Handler(http.StripPrefix("/upload/", http.FileServer(http.Dir("static"))))
+	//router.Get("/", handlers.Home)
+	//router.Post("/", handlers.Upload)
 
 	log.Debug("Starting server", log.Data{"bind_addr": bindAddr})
 
