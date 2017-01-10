@@ -12,6 +12,7 @@ A web UI for uploading files into the data discovery project.
 | TOPIC_NAME           | dp-csv-splitter  | The name of the topic to send file uploaded events to
 | AWS_REGION           | eu-west-1        | The AWS region the S3 bucket is hosted in
 | S3_BUCKET            | file-uploaded    | The name of the S3 bucket to store files.
+| UPLOAD_TIMEOUT       | 1m               | The time before an upload times out. Use 'm' for minutes, 's' for seconds etc.
 
 ### Contributing
 

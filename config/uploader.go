@@ -3,6 +3,7 @@ package config
 import (
 	"github.com/ONSdigital/go-ns/log"
 	"os"
+	"time"
 )
 
 const bindAddrKey = "BIND_ADDR"
@@ -10,6 +11,7 @@ const kafkaAddrKey = "KAFKA_ADDR"
 const s3BucketKey = "S3_BUCKET"
 const awsRegionKey = "AWS_REGION"
 const topicNameKey = "TOPIC_NAME"
+const timeoutKey = "UPLOAD_TIMEOUT"
 
 // BindAddr the address to bind to.
 var BindAddr = ":20019"
@@ -25,6 +27,12 @@ var AWSRegion = "eu-west-1"
 
 // TopicName the name of the Kafka topic to send messages to.
 var TopicName = "file-uploaded"
+
+// UploadTimeout is the time to allow for an upload to complete. As per
+// https://blog.cloudflare.com/the-complete-guide-to-golang-net-http-timeouts/ this will
+// be used to set the ReadTimeout, WriteTimeout and go-ns timeout.Handler timeout as the
+// upload will encompass all three.
+var UploadTimeout = 1 * time.Minute
 
 func init() {
 	if bindAddrEnv := os.Getenv(bindAddrKey); len(bindAddrEnv) > 0 {
@@ -46,6 +54,17 @@ func init() {
 	if topicNameEnv := os.Getenv(topicNameKey); len(topicNameEnv) > 0 {
 		TopicName = topicNameEnv
 	}
+
+	if timeoutEnv := os.Getenv(timeoutKey); len(timeoutEnv) > 0 {
+		var err error
+		UploadTimeout, err = time.ParseDuration(timeoutEnv)
+		if err != nil {
+			log.Error(err, log.Data{
+				"timeout": timeoutEnv,
+			})
+			os.Exit(-1)
+		}
+	}
 }
 
 func Load() {
@@ -56,5 +75,6 @@ func Load() {
 		topicNameKey: TopicName,
 		s3BucketKey:  S3Bucket,
 		awsRegionKey: AWSRegion,
+		timeoutKey: UploadTimeout,
 	})
 }
