@@ -6,10 +6,29 @@
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jquery/2.1.4/jquery.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/jqueryui/1.11.4/jquery-ui.min.js"></script>
     <script src="https://cdnjs.cloudflare.com/ajax/libs/blueimp-file-upload/9.5.7/jquery.fileupload.js"></script>
+    <script src="https://sdk.amazonaws.com/js/aws-sdk-2.7.20.min.js"></script>
 </head>
 <body>
 
 <script type="text/javascript">
+// Configure the SDK
+var bucketName = 'dp-csv-splitter';
+var bucketRegion = 'eu-west-1';
+
+// TODO: use real authentication service to log users in before uploading
+AWS.config.update({
+    region: 'eu-west-1',
+    credentials: new AWS.Credentials({
+        accessKeyId: 'AKIAIZ7ZHYEOAUTDLYYA',
+        secretAccessKey: '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'
+    })
+});
+var s3 = new AWS.S3({
+    apiVersion: '2006-03-01',
+    params: { Bucket: bucketName }
+});
+
+
 // Requires jQuery and blueimp's jQuery.fileUpload
 
 // Configuration
@@ -37,20 +56,14 @@ window.initS3FileUpload = function($fileInput) {
 // to the upload form.
 function s3add(e, data) {
   var filename = data.files[0].name;
-  var params = [];
-  $.ajax({
-    url: credentialsUrl,
-    type: 'GET',
-    dataType: 'json',
-    data: {
-      filename: filename
-    },
-    success: function(s3Data) {
-      data.formData = s3Data.params;
-      data.submit();
-    }
+  s3.upload({
+    Key: filename,
+    Body: data.files[0],
+    ACL: 'public-read'
+  }, function(err, data) {
+    if (err) { return alert("There was an error uploading your file: ", err.message); }
+    alert("Successfully uploaded");
   });
-  return params;
 };
 
 // Example of extracting information about the uploaded file
@@ -63,11 +76,6 @@ function onS3Done(e, data) {
 
 </script>
 
-<script>
-  $(function() {
-    initS3FileUpload($('#fileInput'));
-  });
-</script>
 
 <div class="wrapper">
     <div class="header height--9 col-wrap">
@@ -98,6 +106,11 @@ function onS3Done(e, data) {
         </div>
     </div>
 </div>
+<script>
+  $(function() {
+    initS3FileUpload($('#fileInput'));
+  });
+</script>
 
 </body>
 </html>
