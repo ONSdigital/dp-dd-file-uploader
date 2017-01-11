@@ -1,6 +1,7 @@
 package config
 
 import (
+	"fmt"
 	"github.com/ONSdigital/go-ns/log"
 	"os"
 	"time"
@@ -12,6 +13,8 @@ const s3BucketKey = "S3_BUCKET"
 const awsRegionKey = "AWS_REGION"
 const topicNameKey = "TOPIC_NAME"
 const timeoutKey = "UPLOAD_TIMEOUT"
+
+const maxUploadTimeout = 1 * time.Hour
 
 // BindAddr the address to bind to.
 var BindAddr = ":20019"
@@ -58,11 +61,14 @@ func init() {
 	if timeoutEnv := os.Getenv(timeoutKey); len(timeoutEnv) > 0 {
 		var err error
 		UploadTimeout, err = time.ParseDuration(timeoutEnv)
+		if err == nil && UploadTimeout > maxUploadTimeout {
+			err = fmt.Errorf("Upload timeout too large: %v max allowed: %v", UploadTimeout, maxUploadTimeout)
+		}
 		if err != nil {
 			log.Error(err, log.Data{
 				"timeout": timeoutEnv,
 			})
-			os.Exit(-1)
+			os.Exit(1)
 		}
 	}
 }
@@ -75,6 +81,6 @@ func Load() {
 		topicNameKey: TopicName,
 		s3BucketKey:  S3Bucket,
 		awsRegionKey: AWSRegion,
-		timeoutKey: UploadTimeout,
+		timeoutKey:   UploadTimeout,
 	})
 }
