@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/ONSdigital/dp-dd-file-uploader/assets"
+	"github.com/ONSdigital/dp-dd-file-uploader/aws"
 	"github.com/ONSdigital/dp-dd-file-uploader/config"
 	"github.com/ONSdigital/dp-dd-file-uploader/event/kafka"
 	"github.com/ONSdigital/dp-dd-file-uploader/file/s3"
@@ -23,12 +24,12 @@ import (
 func main() {
 
 	config.Load()
+	s3Config := aws.NewAWSConfig(config.AWSRegion, config.S3URL)
 	log.Namespace = "dp-dd-file-uploader"
 
 	var err error
-
 	render.Renderer = unrolled.New()
-	handlers.FileStore = s3.NewFileStore(config.AWScfg)
+	handlers.FileStore = s3.NewFileStore(s3Config)
 
 	render.Renderer = unrolled.New(unrolled.Options{
 		Asset:      assets.Asset,
@@ -41,6 +42,7 @@ func main() {
 	})
 
 	handlers.EventProducer, err = kafka.NewProducer(config.KafkaAddr, config.TopicName)
+	handlers.S3Config = s3Config
 	if err != nil {
 		log.Error(err, nil)
 		os.Exit(1)

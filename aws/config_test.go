@@ -1,12 +1,11 @@
-package config
+package aws
 
-import
-(
-	"testing"
+import (
+	"errors"
 	. "github.com/smartystreets/goconvey/convey"
 	"net/url"
 	"strings"
-	"errors"
+	"testing"
 )
 
 func TestExtractURLPath(t *testing.T) {
