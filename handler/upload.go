@@ -2,6 +2,7 @@ package handlers
 
 import (
 	"errors"
+	"github.com/ONSdigital/dp-dd-file-uploader/config"
 	"github.com/ONSdigital/dp-dd-file-uploader/event"
 	"github.com/ONSdigital/dp-dd-file-uploader/file"
 	"github.com/ONSdigital/dp-dd-file-uploader/render"
@@ -9,8 +10,6 @@ import (
 	"github.com/ONSdigital/go-ns/log"
 	"net/http"
 	"time"
-	"github.com/ONSdigital/dp-dd-file-uploader/config"
-	"fmt"
 )
 
 var FileStore file.Store
@@ -67,11 +66,11 @@ func Upload(w http.ResponseWriter, req *http.Request) {
 	}
 
 	event := event.FileUploaded{
-		Time:     time.Now().UTC().Unix(),
+		Time:  time.Now().UTC().Unix(),
 		S3URL: config.AWScfg.GetS3FileURL(header.Filename),
 	}
 
-	log.Debug("I AM SENDING " + fmt.Sprintf("%+v", event), nil)
+	log.Debug("Sending file to S3 ", log.Data{"url": event.S3URL})
 
 	err = EventProducer.FileUploaded(event)
 	if err != nil {
