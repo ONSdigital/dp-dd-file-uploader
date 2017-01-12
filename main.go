@@ -18,7 +18,6 @@ import (
 	"html/template"
 	"net/http"
 	"os"
-	"time"
 )
 
 func main() {
@@ -50,7 +49,7 @@ func main() {
 
 	router := pat.New()
 	alice := alice.New(
-		timeout.Handler(10*time.Second),
+		timeout.Handler(config.UploadTimeout),
 		log.Handler,
 		requestID.Handler(16),
 	).Then(router)
@@ -64,8 +63,8 @@ func main() {
 	server := &http.Server{
 		Addr:         config.BindAddr,
 		Handler:      alice,
-		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 10 * time.Second,
+		ReadTimeout:  config.UploadTimeout,
+		WriteTimeout: config.UploadTimeout,
 	}
 
 	if err := server.ListenAndServe(); err != nil {
