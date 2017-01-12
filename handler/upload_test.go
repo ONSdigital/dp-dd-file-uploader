@@ -4,18 +4,20 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"github.com/ONSdigital/dp-dd-file-uploader/assets"
+	"github.com/ONSdigital/dp-dd-file-uploader/aws"
 	"github.com/ONSdigital/dp-dd-file-uploader/event/eventtest"
 	"github.com/ONSdigital/dp-dd-file-uploader/file/filetest"
 	"github.com/ONSdigital/dp-dd-file-uploader/handler"
 	"github.com/ONSdigital/dp-dd-file-uploader/render"
 	. "github.com/smartystreets/goconvey/convey"
 	unrolled "github.com/unrolled/render"
+	"html/template"
 	"net/http"
 	"net/http/httptest"
+	"net/url"
 	"strings"
 	"testing"
-	"github.com/ONSdigital/dp-dd-file-uploader/assets"
-	"html/template"
 )
 
 var exampleMultipartBody string = `
@@ -37,6 +39,8 @@ Upload
 `
 
 func TestUploadHandler(t *testing.T) {
+	url, _ := url.Parse("s3://bucket1/dir/test.csv")
+	handlers.S3Config = aws.NewAWSConfig("region1", url)
 
 	render.Renderer = unrolled.New(unrolled.Options{
 		Asset:      assets.Asset,

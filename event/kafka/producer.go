@@ -40,7 +40,7 @@ func (kafka Producer) FileUploaded(event event.FileUploaded) error {
 
 	producerMsg := &sarama.ProducerMessage{
 		Topic: kafka.TopicName,
-		Key:   sarama.StringEncoder(event.Filename),
+		Key:   sarama.StringEncoder(event.S3URL),
 		Value: sarama.ByteEncoder(eventJSON),
 	}
 

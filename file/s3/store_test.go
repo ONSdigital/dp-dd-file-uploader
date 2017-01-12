@@ -1,9 +1,11 @@
 package s3_test
 
 import (
+	"github.com/ONSdigital/dp-dd-file-uploader/aws"
 	"github.com/ONSdigital/dp-dd-file-uploader/file/s3"
 	"github.com/aws/aws-sdk-go/service/s3/s3manager"
 	. "github.com/smartystreets/goconvey/convey"
+	"net/url"
 	"strings"
 	"testing"
 )
@@ -24,13 +26,16 @@ func (mockUploader *mockUploader) Upload(*s3manager.UploadInput, ...func(*s3mana
 
 func TestUpload(t *testing.T) {
 
-	Convey("Given a s3FileStore instance with a mock s3 client", t, func() {
+	Convey("Given a s3FileStore instance with a mock s3 client and valid aws config", t, func() {
+
+		s3URL, _ := url.Parse("s3://dp-csv-splitter/smooosh")
 
 		uploader := mockUploader{}
+		awsCFG := aws.NewAWSConfig("region1", s3URL)
 
 		s3FileStore := s3.FileStore{
-			Uploader:   &uploader,
-			BucketName: "the bucketname",
+			Uploader: &uploader,
+			S3Config: awsCFG,
 		}
 
 		Convey("Given a reader with some test data", func() {
