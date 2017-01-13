@@ -10,13 +10,14 @@ CONFIG=$(aws --region $AWS_REGION ec2 describe-tags --filters "Name=resource-id,
 
 (aws s3 cp s3://$CONFIG_BUCKET/dp-dd-file-uploader/$CONFIG.asc . && gpg --decrypt $CONFIG.asc > $CONFIG) || exit $?
 
-source $CONFIG && docker run -d \
-  --env=AWS_REGION=$AWS_REGION  \
-  --env=BIND_ADDR=$BIND_ADDR    \
-  --env=KAFKA_ADDR=$KAFKA_ADDR  \
-  --env=S3_BUCKET=$S3_BUCKET    \
-  --env=TOPIC_NAME=$KAFKA_TOPIC \
-  --name=dp-dd-file-uploader    \
-  --net=$DOCKER_NETWORK         \
-  --restart=always              \
+source $CONFIG && docker run -d        \
+  --env=AWS_REGION=$AWS_REGION         \
+  --env=BIND_ADDR=$BIND_ADDR           \
+  --env=KAFKA_ADDR=$KAFKA_ADDR         \
+  --env=S3_BUCKET=$S3_BUCKET           \
+  --env=TOPIC_NAME=$KAFKA_TOPIC        \
+  --env=UPLOAD_TIMEOUT=$UPLOAD_TIMEOUT \
+  --name=dp-dd-file-uploader           \
+  --net=$DOCKER_NETWORK                \
+  --restart=always                     \
   $ECR_REPOSITORY_URI/dp-dd-file-uploader:$GIT_COMMIT
