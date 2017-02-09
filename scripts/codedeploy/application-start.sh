@@ -14,7 +14,7 @@ source $CONFIG && docker run -d        \
   --env=AWS_REGION=$AWS_REGION         \
   --env=BIND_ADDR=$BIND_ADDR           \
   --env=KAFKA_ADDR=$KAFKA_ADDR         \
-  --env=S3_BUCKET=$S3_BUCKET           \
+  --env=S3_URL=$S3_URL                 \
   --env=TOPIC_NAME=$KAFKA_TOPIC        \
   --env=UPLOAD_TIMEOUT=$UPLOAD_TIMEOUT \
   --name=dp-dd-file-uploader           \
