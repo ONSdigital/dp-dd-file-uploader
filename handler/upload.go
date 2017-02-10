@@ -104,17 +104,14 @@ func CreateValidatingReader(sourceReader io.Reader) io.Reader {
 	csvReader := csv.NewReader(tee)
 	// create a goroutine that will read from the csvReader and close the pipe if an error is returned by csvReader, or the number of fields isn't correct
 	go func() {
-		stop := false
 		i := 0
-		for !stop {
+		for {
 			row, err := csvReader.Read()
 			if err != nil {
-				stop = true
 				pipeWriter.CloseWithError(err)
 				return
 			}
 			if len(row)%3 != 0 {
-				stop = true
 				message := fmt.Sprintf("Wrong number of fields in file - must be a multiple of 3, but was %d", len(row))
 				pipeWriter.CloseWithError(errors.New(message))
 				return
