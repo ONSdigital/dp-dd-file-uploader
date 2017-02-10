@@ -1,15 +1,19 @@
 package handlers
 
 import (
+	"encoding/csv"
 	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"time"
+
 	"github.com/ONSdigital/dp-dd-file-uploader/aws"
 	"github.com/ONSdigital/dp-dd-file-uploader/event"
 	"github.com/ONSdigital/dp-dd-file-uploader/file"
 	"github.com/ONSdigital/dp-dd-file-uploader/render"
 	"github.com/ONSdigital/go-ns/handlers/response"
 	"github.com/ONSdigital/go-ns/log"
-	"net/http"
-	"time"
 )
 
 var FileStore file.Store
@@ -55,10 +59,12 @@ func Upload(w http.ResponseWriter, req *http.Request) {
 
 	log.Debug("Attempting to read file from request", log.Data{"filename": header.Filename})
 
-	err = FileStore.SaveFile(file, header.Filename)
+	reader := CreateValidatingReader(file)
+
+	err = FileStore.SaveFile(reader, header.Filename)
 	if err != nil {
 		log.Error(err, log.Data{"message": FailedToSaveFile})
-		err = response.WriteJSON(w, Response{Message: FailedToSaveFile}, http.StatusInternalServerError)
+		err = response.WriteJSON(w, Response{Message: fmt.Sprintf("%s %v", FailedToSaveFile, err)}, http.StatusInternalServerError)
 		if err != nil {
 			log.Error(err, log.Data{"message": "Failed to write JSON response"})
 			w.WriteHeader(http.StatusInternalServerError)
@@ -88,4 +94,34 @@ func Upload(w http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		log.Error(err, log.Data{"message": "Failed to render home page"})
 	}
+
+}
+
+// CreateValidatingReader creates a reader that will return an error if the stream being read does not represent a valid csv file.
+func CreateValidatingReader(sourceReader io.Reader) io.Reader {
+	pipeReader, pipeWriter := io.Pipe()
+	tee := io.TeeReader(sourceReader, pipeWriter)
+	csvReader := csv.NewReader(tee)
+	// create a goroutine that will read from the csvReader and close the pipe if an error is returned by csvReader, or the number of fields isn't correct
+	go func() {
+		stop := false
+		i := 0
+		for !stop {
+			row, err := csvReader.Read()
+			if err != nil {
+				stop = true
+				pipeWriter.CloseWithError(err)
+				return
+			}
+			if len(row)%3 != 0 {
+				stop = true
+				message := fmt.Sprintf("Wrong number of fields in file - must be a multiple of 3, but was %d", len(row))
+				pipeWriter.CloseWithError(errors.New(message))
+				return
+			}
+			i++
+		}
+		log.Debug("", log.Data{"message": fmt.Sprintf("Valid CSV file has %d rows", i)})
+	}()
+	return pipeReader
 }
