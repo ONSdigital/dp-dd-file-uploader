@@ -104,7 +104,6 @@ func CreateValidatingReader(sourceReader io.Reader) io.Reader {
 	csvReader := csv.NewReader(tee)
 	// create a goroutine that will read from the csvReader and close the pipe if an error is returned by csvReader, or the number of fields isn't correct
 	go func() {
-		i := 0
 		for {
 			row, err := csvReader.Read()
 			if err != nil {
@@ -116,9 +115,7 @@ func CreateValidatingReader(sourceReader io.Reader) io.Reader {
 				pipeWriter.CloseWithError(errors.New(message))
 				return
 			}
-			i++
 		}
-		log.Debug("", log.Data{"message": fmt.Sprintf("Valid CSV file has %d rows", i)})
 	}()
 	return pipeReader
 }
