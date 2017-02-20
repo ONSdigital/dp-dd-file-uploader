@@ -36,7 +36,7 @@ var TopicName = "file-uploaded"
 var UploadTimeout = 1 * time.Minute
 
 // Default S3 URL value.
-var S3URL, _ = url.Parse("s3://dp-csv-splitter/" + os.Getenv("USER"))
+var S3URL, _ = url.Parse("s3://dp-csv-splitter-develop/" + os.Getenv("USER"))
 
 func init() {
 	if bindAddrEnv := os.Getenv(bindAddrKey); len(bindAddrEnv) > 0 {
