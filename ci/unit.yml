@@ -1,0 +1,16 @@
+---
+
+platform: linux
+
+image_resource:
+  type: docker-image
+  source:
+    repository: golang
+    tag: 1.7.4
+
+inputs:
+  - name: dp-dd-file-uploader
+    path: go/src/github.com/ONSdigital/dp-dd-file-uploader
+
+run:
+  path: go/src/github.com/ONSdigital/dp-dd-file-uploader/ci/scripts/unit.sh
