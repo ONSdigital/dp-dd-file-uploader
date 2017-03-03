@@ -156,7 +156,7 @@ func TestValidatingReader(t *testing.T) {
 		invalidCsvFile := "header_1,header_2\n" + "value_1,value_2\n" + "value_1,value_2"
 		source := strings.NewReader(invalidCsvFile)
 
-		reader := handlers.CreateValidatingReader(source)
+		reader := handlers.CreateValidatingReader(source, "cntxt")
 
 		var buf bytes.Buffer
 
@@ -168,7 +168,7 @@ func TestValidatingReader(t *testing.T) {
 		invalidCsvFile := "header_1,header_2,header_3\n" + "value_1,value_2\n" + "value_1,value_2,value_3"
 		source := strings.NewReader(invalidCsvFile)
 
-		reader := handlers.CreateValidatingReader(source)
+		reader := handlers.CreateValidatingReader(source, "cntxt")
 
 		var buf bytes.Buffer
 
@@ -188,7 +188,7 @@ func TestValidatingReader(t *testing.T) {
 		csvFile := "header_1,header_2,header_3\n" + "value_1,value_2,value_3\n" + "value_1,value_2,value_3"
 		source := strings.NewReader(csvFile)
 
-		reader := handlers.CreateValidatingReader(source)
+		reader := handlers.CreateValidatingReader(source, "cntxt")
 
 		var buf bytes.Buffer
 		_, err := io.Copy(&buf, reader)
