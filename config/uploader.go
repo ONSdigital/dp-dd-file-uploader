@@ -1,24 +1,27 @@
 package config
 
 import (
+	"fmt"
 	"github.com/ONSdigital/go-ns/log"
+	"net/url"
 	"os"
+	"time"
 )
 
 const bindAddrKey = "BIND_ADDR"
 const kafkaAddrKey = "KAFKA_ADDR"
-const s3BucketKey = "S3_BUCKET"
 const awsRegionKey = "AWS_REGION"
 const topicNameKey = "TOPIC_NAME"
+const timeoutKey = "UPLOAD_TIMEOUT"
+const s3URLKey = "S3_URL"
+
+const maxUploadTimeout = 1 * time.Hour
 
 // BindAddr the address to bind to.
 var BindAddr = ":20019"
 
 // KafkaAddr the Kafka address to send messages to.
 var KafkaAddr = "localhost:9092"
-
-// S3Bucket the name of the AWS s3 bucket to get the CSV files from.
-var S3Bucket = "dp-csv-splitter"
 
 // AWSRegion the AWS region to use.
 var AWSRegion = "eu-west-1"
@@ -31,6 +34,14 @@ var AWSAccessKey = ""
 
 // AWSSecretKey the AWS secret key
 var AWSSecretKey = ""
+// UploadTimeout is the time to allow for an upload to complete. As per
+// https://blog.cloudflare.com/the-complete-guide-to-golang-net-http-timeouts/ this will
+// be used to set the ReadTimeout, WriteTimeout and go-ns timeout.Handler timeout as the
+// upload will encompass all three.
+var UploadTimeout = 10 * time.Minute
+
+// Default S3 URL value.
+var S3URL, _ = url.Parse("s3://dp-csv-splitter-develop/" + os.Getenv("USER"))
 
 func init() {
 	if bindAddrEnv := os.Getenv(bindAddrKey); len(bindAddrEnv) > 0 {
@@ -41,16 +52,33 @@ func init() {
 		KafkaAddr = kafkaAddrEnv
 	}
 
-	if s3BucketEnv := os.Getenv(s3BucketKey); len(s3BucketEnv) > 0 {
-		S3Bucket = s3BucketEnv
+	if topicNameEnv := os.Getenv(topicNameKey); len(topicNameEnv) > 0 {
+		TopicName = topicNameEnv
 	}
 
 	if awsRegionEnv := os.Getenv(awsRegionKey); len(awsRegionEnv) > 0 {
 		AWSRegion = awsRegionEnv
 	}
 
-	if topicNameEnv := os.Getenv(topicNameKey); len(topicNameEnv) > 0 {
-		TopicName = topicNameEnv
+	if s3URLEnv := os.Getenv(s3URLKey); len(s3URLEnv) > 0 {
+		var err error
+		if S3URL, err = url.Parse(s3URLEnv); err != nil {
+			log.Error(err, log.Data{"Failed to parse S3URL env var, will use default.": S3URL})
+		}
+	}
+
+	if timeoutEnv := os.Getenv(timeoutKey); len(timeoutEnv) > 0 {
+		var err error
+		UploadTimeout, err = time.ParseDuration(timeoutEnv)
+		if err == nil && UploadTimeout > maxUploadTimeout {
+			err = fmt.Errorf("Upload timeout too large: %v max allowed: %v", UploadTimeout, maxUploadTimeout)
+		}
+		if err != nil {
+			log.Error(err, log.Data{
+				"timeout": timeoutEnv,
+			})
+			os.Exit(1)
+		}
 	}
 
 	if accessKeyEnv := os.Getenv("ACCESS_KEY"); len(accessKeyEnv) > 0 {
@@ -68,7 +96,8 @@ func Load() {
 		bindAddrKey:  BindAddr,
 		kafkaAddrKey: KafkaAddr,
 		topicNameKey: TopicName,
-		s3BucketKey:  S3Bucket,
 		awsRegionKey: AWSRegion,
+		timeoutKey:   UploadTimeout,
+		s3URLKey:     S3URL,
 	})
 }

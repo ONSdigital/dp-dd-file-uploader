@@ -2,6 +2,7 @@ package main
 
 import (
 	"github.com/ONSdigital/dp-dd-file-uploader/assets"
+	"github.com/ONSdigital/dp-dd-file-uploader/aws"
 	"github.com/ONSdigital/dp-dd-file-uploader/config"
 	"github.com/ONSdigital/dp-dd-file-uploader/event/kafka"
 	"github.com/ONSdigital/dp-dd-file-uploader/file/s3"
@@ -17,20 +18,18 @@ import (
 	"html/template"
 	"net/http"
 	"os"
-	"time"
 )
 
 func main() {
 
 	config.Load()
+	s3Config := aws.NewAWSConfig(config.AWSRegion, config.S3URL)
 	log.Namespace = "dp-dd-file-uploader"
 
-	bindAddr := os.Getenv("BIND_ADDR")
-	if len(bindAddr) == 0 {
-		bindAddr = config.BindAddr
-	}
-
 	var err error
+	render.Renderer = unrolled.New()
+	handlers.FileStore = s3.NewFileStore(s3Config)
+
 	render.Renderer = unrolled.New(unrolled.Options{
 		Asset:      assets.Asset,
 		AssetNames: assets.AssetNames,
@@ -41,8 +40,8 @@ func main() {
 		}},
 	})
 
-	handlers.FileStore = s3.NewFileStore(config.AWSRegion, config.S3Bucket)
 	handlers.EventProducer, err = kafka.NewProducer(config.KafkaAddr, config.TopicName)
+	handlers.S3Config = s3Config
 	if err != nil {
 		log.Error(err, nil)
 		os.Exit(1)
@@ -50,7 +49,7 @@ func main() {
 
 	router := pat.New()
 	alice := alice.New(
-		timeout.Handler(10*time.Second),
+		timeout.Handler(config.UploadTimeout),
 		log.Handler,
 		requestID.Handler(16),
 	).Then(router)
@@ -61,13 +60,13 @@ func main() {
 	//router.Get("/", handlers.Home)
 	//router.Post("/", handlers.Upload)
 
-	log.Debug("Starting server", log.Data{"bind_addr": bindAddr})
+	log.Debug("Starting server", log.Data{"bind_addr": config.BindAddr})
 
 	server := &http.Server{
-		Addr:         bindAddr,
+		Addr:         config.BindAddr,
 		Handler:      alice,
-		ReadTimeout:  5 * time.Second,
-		WriteTimeout: 10 * time.Second,
+		ReadTimeout:  config.UploadTimeout,
+		WriteTimeout: config.UploadTimeout,
 	}
 
 	if err := server.ListenAndServe(); err != nil {

@@ -18,7 +18,7 @@ func (eventProducer *DummyEventProducer) FileUploaded(event event.FileUploaded) 
 
 	eventProducer.Invocations++
 
-	if strings.Contains(event.Filename, "EventError") {
+	if strings.Contains(event.S3URL, "EventError") {
 		return errors.New("Error sending event")
 	}
 

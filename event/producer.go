@@ -7,6 +7,6 @@ type Producer interface {
 
 // FileUploaded event
 type FileUploaded struct {
-	Filename string `json:"filename"`
 	Time     int64  `json:"time"`
+	S3URL    string `json:"s3URL"`
 }

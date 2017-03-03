@@ -1,18 +1,24 @@
 package handlers
 
 import (
+	"encoding/csv"
 	"errors"
+	"fmt"
+	"io"
+	"net/http"
+	"time"
+
+	"github.com/ONSdigital/dp-dd-file-uploader/aws"
 	"github.com/ONSdigital/dp-dd-file-uploader/event"
 	"github.com/ONSdigital/dp-dd-file-uploader/file"
 	"github.com/ONSdigital/dp-dd-file-uploader/render"
 	"github.com/ONSdigital/go-ns/handlers/response"
 	"github.com/ONSdigital/go-ns/log"
-	"net/http"
-	"time"
 )
 
 var FileStore file.Store
 var EventProducer event.Producer
+var S3Config *aws.Config
 
 type Response struct {
 	Message string `json:"message,omitempty"`
@@ -25,21 +31,21 @@ var FailedToSendEvent string = "Failed to send file uploaded event."
 func Upload(w http.ResponseWriter, req *http.Request) {
 
 	if FileStore == nil {
-		log.Error(errors.New("The FileStore dependency has not been configured"), nil)
+		log.ErrorR(req, errors.New("The FileStore dependency has not been configured"), nil)
 		return
 	}
 
 	if EventProducer == nil {
-		log.Error(errors.New("The EventProducer dependency has not been configured"), nil)
+		log.ErrorR(req, errors.New("The EventProducer dependency has not been configured"), nil)
 		return
 	}
 
 	file, header, err := req.FormFile("file")
 	if err != nil {
-		log.Error(err, log.Data{"message": FailedToReadRequest})
+		log.ErrorR(req, err, log.Data{"message": FailedToReadRequest})
 		err = response.WriteJSON(w, Response{Message: FailedToReadRequest}, http.StatusBadRequest)
 		if err != nil {
-			log.Error(err, log.Data{"message": "Failed to write JSON response"})
+			log.ErrorR(req, err, log.Data{"message": "Failed to write JSON response"})
 			w.WriteHeader(http.StatusBadRequest)
 		}
 		return
@@ -47,16 +53,21 @@ func Upload(w http.ResponseWriter, req *http.Request) {
 	defer func() {
 		err = file.Close()
 		if err != nil {
-			log.Error(err, nil)
+			log.ErrorR(req, err, nil)
 		}
 	}()
 
-	log.Debug("Attempting to read file from request", log.Data{"filename": header.Filename})
+	log.DebugR(req, "Attempting to read file from request", log.Data{"filename": header.Filename})
 
-	err = FileStore.SaveFile(file, header.Filename)
+	reader := CreateValidatingReader(file, log.Context(req))
+
+	log.DebugR(req, "Streaming file to s3", log.Data{"filename": header.Filename})
+
+	err = FileStore.SaveFile(reader, header.Filename)
+
 	if err != nil {
 		log.Error(err, log.Data{"message": FailedToSaveFile})
-		err = response.WriteJSON(w, Response{Message: FailedToSaveFile}, http.StatusInternalServerError)
+		err = response.WriteJSON(w, Response{Message: fmt.Sprintf("%s %v", FailedToSaveFile, err)}, http.StatusInternalServerError)
 		if err != nil {
 			log.Error(err, log.Data{"message": "Failed to write JSON response"})
 			w.WriteHeader(http.StatusInternalServerError)
@@ -64,10 +75,12 @@ func Upload(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	err = EventProducer.FileUploaded(event.FileUploaded{
-		Filename: header.Filename,
-		Time:     time.Now().UTC().Unix(),
-	})
+	event := event.FileUploaded{
+		Time:  time.Now().UTC().Unix(),
+		S3URL: S3Config.GetS3FileURL(header.Filename),
+	}
+
+	err = EventProducer.FileUploaded(event)
 	if err != nil {
 		log.Error(err, log.Data{"message": FailedToSendEvent})
 		response.WriteJSON(w, Response{Message: FailedToSendEvent}, http.StatusInternalServerError)
@@ -82,4 +95,34 @@ func Upload(w http.ResponseWriter, req *http.Request) {
 	if err != nil {
 		log.Error(err, log.Data{"message": "Failed to render home page"})
 	}
+
+}
+
+// CreateValidatingReader creates a reader that will return an error if the stream being read does not represent a valid csv file.
+func CreateValidatingReader(sourceReader io.Reader, context string) io.Reader {
+	pipeReader, pipeWriter := io.Pipe()
+	tee := io.TeeReader(sourceReader, pipeWriter)
+	csvReader := csv.NewReader(tee)
+	// create a goroutine that will read from the csvReader and close the pipe if an error is returned by csvReader, or the number of fields isn't correct
+	go func() {
+		rowCount := 0
+		for {
+			rowCount++
+			row, err := csvReader.Read()
+			if err != nil {
+				pipeWriter.CloseWithError(err)
+				log.DebugC(context, "Finished sending file to s3", log.Data{"rowCount": rowCount, "err": err})
+				return
+			}
+			if len(row)%3 != 0 {
+				message := fmt.Sprintf("Wrong number of fields in file at row %d - must be a multiple of 3, but was %d", rowCount, len(row))
+				pipeWriter.CloseWithError(errors.New(message))
+				return
+			}
+			if rowCount%10000 == 0 {
+				log.DebugC(context, "Sending file to s3", log.Data{"rowCount": rowCount})
+			}
+		}
+	}()
+	return pipeReader
 }

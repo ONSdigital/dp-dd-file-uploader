@@ -4,18 +4,23 @@ import (
 	"bytes"
 	"encoding/json"
 	"fmt"
+	"html/template"
+	"io"
+	"net/http"
+	"net/http/httptest"
+	"net/url"
+	"os"
+	"strings"
+	"testing"
+
+	"github.com/ONSdigital/dp-dd-file-uploader/assets"
+	"github.com/ONSdigital/dp-dd-file-uploader/aws"
 	"github.com/ONSdigital/dp-dd-file-uploader/event/eventtest"
 	"github.com/ONSdigital/dp-dd-file-uploader/file/filetest"
 	"github.com/ONSdigital/dp-dd-file-uploader/handler"
 	"github.com/ONSdigital/dp-dd-file-uploader/render"
 	. "github.com/smartystreets/goconvey/convey"
 	unrolled "github.com/unrolled/render"
-	"net/http"
-	"net/http/httptest"
-	"strings"
-	"testing"
-	"github.com/ONSdigital/dp-dd-file-uploader/assets"
-	"html/template"
 )
 
 var exampleMultipartBody string = `
@@ -37,6 +42,8 @@ Upload
 `
 
 func TestUploadHandler(t *testing.T) {
+	url, _ := url.Parse("s3://bucket1/dir/test.csv")
+	handlers.S3Config = aws.NewAWSConfig("region1", url)
 
 	render.Renderer = unrolled.New(unrolled.Options{
 		Asset:      assets.Asset,
@@ -113,7 +120,7 @@ func TestUploadHandler(t *testing.T) {
 		fmt.Println(recorder.Body)
 		So(recorder.Code, ShouldEqual, 500)
 		So(fileStore.Invocations, ShouldEqual, 1)
-		So(response.Message, ShouldEqual, handlers.FailedToSaveFile)
+		So(response.Message, ShouldContainSubstring, handlers.FailedToSaveFile)
 	})
 
 	Convey("Handler returns 500 status code response when event send fails.", t, func() {
@@ -141,4 +148,53 @@ func TestUploadHandler(t *testing.T) {
 		So(fileStore.Invocations, ShouldEqual, 1)
 		So(response.Message, ShouldEqual, handlers.FailedToSendEvent)
 	})
+}
+
+func TestValidatingReader(t *testing.T) {
+
+	Convey("validatingReader panics when we're given an invalid csv file with too few fields", t, func() {
+		invalidCsvFile := "header_1,header_2\n" + "value_1,value_2\n" + "value_1,value_2"
+		source := strings.NewReader(invalidCsvFile)
+
+		reader := handlers.CreateValidatingReader(source, "cntxt")
+
+		var buf bytes.Buffer
+
+		_, err := io.Copy(&buf, reader)
+		So(err, ShouldNotBeNil)
+	})
+
+	Convey("validatingReader returns error when we're given an invalid csv file with mismatched lines", t, func() {
+		invalidCsvFile := "header_1,header_2,header_3\n" + "value_1,value_2\n" + "value_1,value_2,value_3"
+		source := strings.NewReader(invalidCsvFile)
+
+		reader := handlers.CreateValidatingReader(source, "cntxt")
+
+		var buf bytes.Buffer
+
+		_, err := io.Copy(&buf, reader)
+		So(err, ShouldNotBeNil)
+	})
+
+	Convey("validatingReader should not panic when we're given a valid csv file", t, func() {
+		tempFile := "/tmp/test.csv"
+		writer, _ := os.Create(tempFile)
+		defer func() {
+			writer.Close()
+			os.Remove(tempFile)
+			r := recover()
+			So(r, ShouldBeNil)
+		}()
+		csvFile := "header_1,header_2,header_3\n" + "value_1,value_2,value_3\n" + "value_1,value_2,value_3"
+		source := strings.NewReader(csvFile)
+
+		reader := handlers.CreateValidatingReader(source, "cntxt")
+
+		var buf bytes.Buffer
+		_, err := io.Copy(&buf, reader)
+
+		So(buf.String(), ShouldEqual, csvFile)
+		So(err, ShouldBeNil)
+	})
+
 }
