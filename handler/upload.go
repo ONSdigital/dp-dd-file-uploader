@@ -8,16 +8,18 @@ import (
 	"net/http"
 	"time"
 
+	"archive/zip"
 	"github.com/ONSdigital/dp-dd-file-uploader/aws"
+	"github.com/ONSdigital/dp-dd-file-uploader/config"
 	"github.com/ONSdigital/dp-dd-file-uploader/event"
 	"github.com/ONSdigital/dp-dd-file-uploader/file"
 	"github.com/ONSdigital/dp-dd-file-uploader/render"
 	"github.com/ONSdigital/go-ns/handlers/response"
 	"github.com/ONSdigital/go-ns/log"
-	"os"
 	"io/ioutil"
-	"github.com/ONSdigital/dp-dd-file-uploader/config"
 	"mime/multipart"
+	"os"
+	"path/filepath"
 )
 
 var FileStore file.Store
@@ -31,6 +33,11 @@ type Response struct {
 var FailedToReadRequest string = "Failed to read upload file from the request."
 var FailedToSaveFile string = "Failed to save the given file."
 var FailedToSendEvent string = "Failed to send file uploaded event."
+
+var (
+	TooManyFilesInZip = errors.New("More than one file in zip archive")
+	InvalidFileInZip  = errors.New("Non-CSV file in zip archive")
+)
 
 func Upload(w http.ResponseWriter, req *http.Request) {
 
@@ -72,9 +79,9 @@ func Upload(w http.ResponseWriter, req *http.Request) {
 	}
 	log.DebugR(req, "Writing file upload to temporary file", log.Data{
 		"filename": tempFile.Name(),
-	});
+	})
 
-	bytesWritten, err := io.Copy(tempFile, CreateValidatingReader(part, log.Context(req)))
+	bytesWritten, err := io.Copy(tempFile, part)
 	if err != nil {
 		handleFileReadFailure(w, req, err, tempFile)
 		return
@@ -114,7 +121,20 @@ func uploadFileToS3(file *os.File, filename string, context string) {
 
 	log.DebugC(context, "Streaming file to s3", log.Data{"filename": filename})
 
-	err := FileStore.SaveFile(file, filename)
+	var reader io.Reader = file
+
+	if filepath.Ext(filename) == ".zip" {
+		log.DebugC(context, "Zip file detected - decompressing during upload", nil)
+		var err error
+		reader, filename, err = decompressZipFile(file, context)
+		if err != nil {
+			log.ErrorC(context, err, log.Data{
+				"message": "Unable to decode zip archive",
+			})
+		}
+	}
+
+	err := FileStore.SaveFile(CreateValidatingReader(reader, context), filename)
 	if err != nil {
 		log.ErrorC(context, err, log.Data{"message": FailedToSaveFile})
 		return
@@ -148,6 +168,33 @@ func handleFileReadFailure(w http.ResponseWriter, req *http.Request, err error, 
 	}
 }
 
+func decompressZipFile(file *os.File, context string) (reader io.Reader, filename string, err error) {
+	stat, err := file.Stat()
+	if err != nil {
+		log.ErrorC(context, err, log.Data{"message": "Unable to determine file size"})
+		return
+	}
+	zipReader, err := zip.NewReader(file, stat.Size())
+	if err != nil {
+		return
+	}
+
+	if len(zipReader.File) != 1 {
+		err = TooManyFilesInZip
+		return
+	}
+
+	entry := zipReader.File[0]
+	filename = entry.Name
+	if filepath.Ext(filename) != ".csv" {
+		err = InvalidFileInZip
+		return
+	}
+
+	reader, err = entry.Open()
+	return
+}
+
 // CreateValidatingReader creates a reader that will return an error if the stream being read does not represent a valid csv file.
 func CreateValidatingReader(sourceReader io.Reader, context string) io.Reader {
 	pipeReader, pipeWriter := io.Pipe()
@@ -161,7 +208,7 @@ func CreateValidatingReader(sourceReader io.Reader, context string) io.Reader {
 			row, err := csvReader.Read()
 			if err != nil {
 				pipeWriter.CloseWithError(err)
-				log.DebugC(context, "Finished saving file to disk", log.Data{"rowCount": rowCount, "err": err})
+				log.DebugC(context, "Finished saving file to S3", log.Data{"rowCount": rowCount, "err": err})
 				return
 			}
 			if len(row)%3 != 0 {
@@ -170,7 +217,7 @@ func CreateValidatingReader(sourceReader io.Reader, context string) io.Reader {
 				return
 			}
 			if rowCount%50000 == 0 {
-				log.DebugC(context, "Saving file to local disk", log.Data{"rowCount": rowCount})
+				log.DebugC(context, "Saving file to S3", log.Data{"rowCount": rowCount})
 			}
 		}
 	}()
