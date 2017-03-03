@@ -33,7 +33,7 @@ var TopicName = "file-uploaded"
 // https://blog.cloudflare.com/the-complete-guide-to-golang-net-http-timeouts/ this will
 // be used to set the ReadTimeout, WriteTimeout and go-ns timeout.Handler timeout as the
 // upload will encompass all three.
-var UploadTimeout = 1 * time.Minute
+var UploadTimeout = 10 * time.Minute
 
 // Default S3 URL value.
 var S3URL, _ = url.Parse("s3://dp-csv-splitter-develop/" + os.Getenv("USER"))
