@@ -45,8 +45,9 @@ func GetUploadCredentials(w http.ResponseWriter, req *http.Request) {
 }
 
 func credentials(filename string) S3Credentials {
+	s3Bucket := config.S3URL.Host
 	return S3Credentials{
-		EndpointUrl: "https://" + config.S3Bucket + ".s3.amazonaws.com",
+		EndpointUrl: "https://" + s3Bucket + ".s3.amazonaws.com",
 		Params:      params(filename),
 	}
 }
@@ -71,7 +72,7 @@ func policy(filename string, credential string, dateStr string) string {
 	policy := S3Policy{
 		Expiration: toISO8601_v2(time.Now().Add(5 * time.Minute)),
 		Conditions: []interface{}{
-			map[string]interface{}{"bucket": config.S3Bucket},
+			map[string]interface{}{"bucket": config.S3URL.Host},
 			map[string]interface{}{"key": filename},
 			map[string]interface{}{"acl": "public-read"},
 			map[string]interface{}{"success_action_status": "201"},
