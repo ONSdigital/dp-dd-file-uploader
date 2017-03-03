@@ -14,6 +14,10 @@ import (
 	"github.com/ONSdigital/dp-dd-file-uploader/render"
 	"github.com/ONSdigital/go-ns/handlers/response"
 	"github.com/ONSdigital/go-ns/log"
+	"os"
+	"io/ioutil"
+	"github.com/ONSdigital/dp-dd-file-uploader/config"
+	"mime/multipart"
 )
 
 var FileStore file.Store
@@ -40,62 +44,108 @@ func Upload(w http.ResponseWriter, req *http.Request) {
 		return
 	}
 
-	file, header, err := req.FormFile("file")
+	multipartReader, err := req.MultipartReader()
 	if err != nil {
-		log.ErrorR(req, err, log.Data{"message": FailedToReadRequest})
-		err = response.WriteJSON(w, Response{Message: FailedToReadRequest}, http.StatusBadRequest)
-		if err != nil {
-			log.ErrorR(req, err, log.Data{"message": "Failed to write JSON response"})
-			w.WriteHeader(http.StatusBadRequest)
-		}
-		return
-	}
-	defer func() {
-		err = file.Close()
-		if err != nil {
-			log.ErrorR(req, err, nil)
-		}
-	}()
-
-	log.DebugR(req, "Attempting to read file from request", log.Data{"filename": header.Filename})
-
-	reader := CreateValidatingReader(file, log.Context(req))
-
-	log.DebugR(req, "Streaming file to s3", log.Data{"filename": header.Filename})
-
-	err = FileStore.SaveFile(reader, header.Filename)
-
-	if err != nil {
-		log.Error(err, log.Data{"message": FailedToSaveFile})
-		err = response.WriteJSON(w, Response{Message: fmt.Sprintf("%s %v", FailedToSaveFile, err)}, http.StatusInternalServerError)
-		if err != nil {
-			log.Error(err, log.Data{"message": "Failed to write JSON response"})
-			w.WriteHeader(http.StatusInternalServerError)
-		}
+		handleFileReadFailure(w, req, err, nil)
 		return
 	}
 
-	event := event.FileUploaded{
-		Time:  time.Now().UTC().Unix(),
-		S3URL: S3Config.GetS3FileURL(header.Filename),
+	var part *multipart.Part
+	for {
+		part, err = multipartReader.NextPart()
+		if err != nil {
+			handleFileReadFailure(w, req, err, nil)
+			return
+		}
+		if part != nil && part.FormName() == "file" {
+			break
+		}
 	}
 
-	err = EventProducer.FileUploaded(event)
+	// NB: we will get an io.EOF error above if the part was not found, so part will not be nil here
+	defer part.Close()
+
+	tempFile, err := ioutil.TempFile(config.UploadTempDir, "file-upload-")
 	if err != nil {
-		log.Error(err, log.Data{"message": FailedToSendEvent})
-		response.WriteJSON(w, Response{Message: FailedToSendEvent}, http.StatusInternalServerError)
-		if err != nil {
-			log.Error(err, log.Data{"message": "Failed to write JSON response"})
-			w.WriteHeader(http.StatusInternalServerError)
-		}
+		handleFileReadFailure(w, req, err, tempFile)
 		return
 	}
+	log.DebugR(req, "Writing file upload to temporary file", log.Data{
+		"filename": tempFile.Name(),
+	});
+
+	bytesWritten, err := io.Copy(tempFile, CreateValidatingReader(part, log.Context(req)))
+	if err != nil {
+		handleFileReadFailure(w, req, err, tempFile)
+		return
+	}
+	log.DebugR(req, "Successfully wrote file to temporary storage", log.Data{
+		"size": bytesWritten,
+	})
+
+	// Rewind file to start ready to read and stream to S3
+	_, err = tempFile.Seek(0, io.SeekStart)
+	if err != nil {
+		handleFileReadFailure(w, req, err, tempFile)
+		return
+	}
+
+	// Continue upload to S3 in a separate goroutine
+	go uploadFileToS3(tempFile, part.FileName(), log.Context(req))
 
 	err = render.Home(w)
 	if err != nil {
 		log.Error(err, log.Data{"message": "Failed to render home page"})
 	}
+}
 
+func uploadFileToS3(file *os.File, filename string, context string) {
+	defer (func() {
+		err := file.Close()
+		if err != nil {
+			log.ErrorC(context, err, log.Data{"filename": file.Name()})
+		}
+
+		err = os.Remove(file.Name())
+		if err != nil {
+			log.ErrorC(context, err, log.Data{"filename": file.Name()})
+		}
+	})()
+
+	log.DebugC(context, "Streaming file to s3", log.Data{"filename": filename})
+
+	err := FileStore.SaveFile(file, filename)
+	if err != nil {
+		log.ErrorC(context, err, log.Data{"message": FailedToSaveFile})
+		return
+	}
+
+	uploadedEvent := event.FileUploaded{
+		Time:  time.Now().UTC().Unix(),
+		S3URL: S3Config.GetS3FileURL(filename),
+	}
+
+	err = EventProducer.FileUploaded(uploadedEvent)
+	if err != nil {
+		log.ErrorC(context, err, log.Data{"message": FailedToSendEvent})
+		return
+	}
+}
+
+func handleFileReadFailure(w http.ResponseWriter, req *http.Request, err error, tempFile *os.File) {
+	log.ErrorR(req, err, log.Data{"message": FailedToReadRequest})
+	err = response.WriteJSON(w, Response{Message: FailedToReadRequest}, http.StatusBadRequest)
+	if err != nil {
+		log.ErrorR(req, err, log.Data{"message": "Failed to write JSON response"})
+		w.WriteHeader(http.StatusBadRequest)
+	}
+
+	if tempFile != nil {
+		err = os.Remove(tempFile.Name())
+		if err != nil {
+			log.ErrorR(req, err, log.Data{"message": "Unable to remove temporary file", "file": tempFile.Name()})
+		}
+	}
 }
 
 // CreateValidatingReader creates a reader that will return an error if the stream being read does not represent a valid csv file.
@@ -111,7 +161,7 @@ func CreateValidatingReader(sourceReader io.Reader, context string) io.Reader {
 			row, err := csvReader.Read()
 			if err != nil {
 				pipeWriter.CloseWithError(err)
-				log.DebugC(context, "Finished sending file to s3", log.Data{"rowCount": rowCount, "err": err})
+				log.DebugC(context, "Finished saving file to disk", log.Data{"rowCount": rowCount, "err": err})
 				return
 			}
 			if len(row)%3 != 0 {
@@ -119,8 +169,8 @@ func CreateValidatingReader(sourceReader io.Reader, context string) io.Reader {
 				pipeWriter.CloseWithError(errors.New(message))
 				return
 			}
-			if rowCount%10000 == 0 {
-				log.DebugC(context, "Sending file to s3", log.Data{"rowCount": rowCount})
+			if rowCount%50000 == 0 {
+				log.DebugC(context, "Saving file to local disk", log.Data{"rowCount": rowCount})
 			}
 		}
 	}()
