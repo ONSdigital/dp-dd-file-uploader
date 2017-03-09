@@ -14,6 +14,7 @@ const awsRegionKey = "AWS_REGION"
 const topicNameKey = "TOPIC_NAME"
 const timeoutKey = "UPLOAD_TIMEOUT"
 const s3URLKey = "S3_URL"
+const uploadTempDirKey = "UPLOAD_TEMP_DIR"
 
 const maxUploadTimeout = 1 * time.Hour
 
@@ -33,10 +34,13 @@ var TopicName = "file-uploaded"
 // https://blog.cloudflare.com/the-complete-guide-to-golang-net-http-timeouts/ this will
 // be used to set the ReadTimeout, WriteTimeout and go-ns timeout.Handler timeout as the
 // upload will encompass all three.
-var UploadTimeout = 1 * time.Minute
+var UploadTimeout = 10 * time.Minute
 
 // Default S3 URL value.
 var S3URL, _ = url.Parse("s3://dp-csv-splitter-develop/" + os.Getenv("USER"))
+
+// UploadTempDir is the directory to store uploaded files in temporarily before uploading to S3.
+var UploadTempDir = os.TempDir()
 
 func init() {
 	if bindAddrEnv := os.Getenv(bindAddrKey); len(bindAddrEnv) > 0 {
@@ -75,16 +79,21 @@ func init() {
 			os.Exit(1)
 		}
 	}
+
+	if uploadDir := os.Getenv(uploadTempDirKey); len(uploadDir) > 0 {
+		UploadTempDir = uploadDir
+	}
 }
 
 func Load() {
 	// Will call init().
 	log.Debug("dp-dd-file-uploader Configuration", log.Data{
-		bindAddrKey:  BindAddr,
-		kafkaAddrKey: KafkaAddr,
-		topicNameKey: TopicName,
-		awsRegionKey: AWSRegion,
-		timeoutKey:   UploadTimeout,
-		s3URLKey:     S3URL,
+		bindAddrKey:      BindAddr,
+		kafkaAddrKey:     KafkaAddr,
+		topicNameKey:     TopicName,
+		awsRegionKey:     AWSRegion,
+		timeoutKey:       UploadTimeout,
+		s3URLKey:         S3URL,
+		uploadTempDirKey: UploadTempDir,
 	})
 }

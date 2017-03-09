@@ -75,7 +75,7 @@ func TestUploadHandler(t *testing.T) {
 		So(response.Message, ShouldEqual, handlers.FailedToReadRequest)
 	})
 
-	Convey("Handler returns 200 status code response when request body is a valid file", t, func() {
+	Convey("Handler returns 202 Accepted status code response when request body is a valid file", t, func() {
 		fileStore := filetest.NewDummyFileStore()
 		handlers.FileStore = fileStore
 		eventProducer := eventtest.NewDummyEventProducer()
@@ -93,61 +93,10 @@ func TestUploadHandler(t *testing.T) {
 		json.Unmarshal([]byte(recorder.Body.String()), response)
 
 		fmt.Println(recorder.Body)
-		So(recorder.Code, ShouldEqual, 200)
+		So(recorder.Code, ShouldEqual, 202)
 		So(fileStore.Invocations, ShouldEqual, 1)
 	})
 
-	Convey("Handler returns 500 status code response when file save fails.", t, func() {
-		fileStore := filetest.NewDummyFileStore()
-		handlers.FileStore = fileStore
-		eventProducer := eventtest.NewDummyEventProducer()
-		handlers.EventProducer = eventProducer
-
-		recorder := httptest.NewRecorder()
-
-		// set a known filename allowing the file save error to be returned.
-		requestBody := strings.Replace(exampleMultipartBody, "AF001EW.csv", "fileSaveError.csv", 1)
-		requestBodyReader := bytes.NewReader([]byte(requestBody))
-		request, err := http.NewRequest("POST", "/", requestBodyReader)
-		request.Header.Add("Content-Type", "multipart/form-data; boundary=----WebKitFormBoundaryezYpRsrGowIiw0K4")
-		So(err, ShouldBeNil)
-
-		handlers.Upload(recorder, request)
-
-		var response = &handlers.Response{}
-		json.Unmarshal([]byte(recorder.Body.String()), response)
-
-		fmt.Println(recorder.Body)
-		So(recorder.Code, ShouldEqual, 500)
-		So(fileStore.Invocations, ShouldEqual, 1)
-		So(response.Message, ShouldContainSubstring, handlers.FailedToSaveFile)
-	})
-
-	Convey("Handler returns 500 status code response when event send fails.", t, func() {
-		fileStore := filetest.NewDummyFileStore()
-		handlers.FileStore = fileStore
-		eventProducer := eventtest.NewDummyEventProducer()
-		handlers.EventProducer = eventProducer
-
-		recorder := httptest.NewRecorder()
-
-		// set a known filename allowing the event error to be returned.
-		requestBody := strings.Replace(exampleMultipartBody, "AF001EW.csv", "EventError.csv", 1)
-		requestBodyReader := bytes.NewReader([]byte(requestBody))
-		request, err := http.NewRequest("POST", "/", requestBodyReader)
-		request.Header.Add("Content-Type", "multipart/form-data; boundary=----WebKitFormBoundaryezYpRsrGowIiw0K4")
-		So(err, ShouldBeNil)
-
-		handlers.Upload(recorder, request)
-
-		var response = &handlers.Response{}
-		json.Unmarshal([]byte(recorder.Body.String()), response)
-
-		fmt.Println(recorder.Body)
-		So(recorder.Code, ShouldEqual, 500)
-		So(fileStore.Invocations, ShouldEqual, 1)
-		So(response.Message, ShouldEqual, handlers.FailedToSendEvent)
-	})
 }
 
 func TestValidatingReader(t *testing.T) {
@@ -156,7 +105,7 @@ func TestValidatingReader(t *testing.T) {
 		invalidCsvFile := "header_1,header_2\n" + "value_1,value_2\n" + "value_1,value_2"
 		source := strings.NewReader(invalidCsvFile)
 
-		reader := handlers.CreateValidatingReader(source)
+		reader := handlers.CreateValidatingReader(source, "cntxt")
 
 		var buf bytes.Buffer
 
@@ -168,7 +117,7 @@ func TestValidatingReader(t *testing.T) {
 		invalidCsvFile := "header_1,header_2,header_3\n" + "value_1,value_2\n" + "value_1,value_2,value_3"
 		source := strings.NewReader(invalidCsvFile)
 
-		reader := handlers.CreateValidatingReader(source)
+		reader := handlers.CreateValidatingReader(source, "cntxt")
 
 		var buf bytes.Buffer
 
@@ -188,7 +137,7 @@ func TestValidatingReader(t *testing.T) {
 		csvFile := "header_1,header_2,header_3\n" + "value_1,value_2,value_3\n" + "value_1,value_2,value_3"
 		source := strings.NewReader(csvFile)
 
-		reader := handlers.CreateValidatingReader(source)
+		reader := handlers.CreateValidatingReader(source, "cntxt")
 
 		var buf bytes.Buffer
 		_, err := io.Copy(&buf, reader)
