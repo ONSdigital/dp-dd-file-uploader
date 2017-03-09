@@ -21,6 +21,7 @@ import (
 	"github.com/ONSdigital/dp-dd-file-uploader/render"
 	. "github.com/smartystreets/goconvey/convey"
 	unrolled "github.com/unrolled/render"
+	"time"
 )
 
 var exampleMultipartBody string = `
@@ -94,6 +95,7 @@ func TestUploadHandler(t *testing.T) {
 
 		fmt.Println(recorder.Body)
 		So(recorder.Code, ShouldEqual, 202)
+		time.Sleep(1 * time.Second)
 		So(fileStore.Invocations, ShouldEqual, 1)
 	})
 
