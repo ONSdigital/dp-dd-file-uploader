@@ -264,11 +264,11 @@ func ByteMarkRecorder(reader io.Reader, byteMarkers []ByteMarker, blockSize int,
 			rowCount ++
 			if rowCount % blockSize == 0 {
 				currentBlock.LastRow = rowCount
-				currentBlock.LastByte = byteCount
+				currentBlock.LastByte = byteCount-1
 				byteMarkers = append(byteMarkers, currentBlock)
 				log.DebugC(context, "Sending block", log.Data{"block": currentBlock})
 				blockNumber++
-				currentBlock = ByteMarker{BlockNumber:blockNumber, FirstRow: rowCount+1, FirstByte:byteCount+1}
+				currentBlock = ByteMarker{BlockNumber:blockNumber, FirstRow: rowCount+1, FirstByte:byteCount}
 			}
 		}
 		if (currentBlock.FirstRow <= rowCount) {
