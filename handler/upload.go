@@ -20,6 +20,7 @@ import (
 	"mime/multipart"
 	"os"
 	"path/filepath"
+	"bufio"
 )
 
 var FileStore file.Store
@@ -134,7 +135,10 @@ func uploadFileToS3(file *os.File, filename string, context string) {
 		}
 	}
 
-	err := FileStore.SaveFile(CreateValidatingReader(reader, context), filename)
+	byteMarkers := []ByteMarker{}
+	reader = CreateValidatingReader(reader, context)
+	reader = ByteMarkRecorder(reader, byteMarkers, 2, context)
+	err := FileStore.SaveFile(reader, filename)
 	if err != nil {
 		log.ErrorC(context, err, log.Data{"message": FailedToSaveFile})
 		return
@@ -198,27 +202,80 @@ func decompressZipFile(file *os.File, context string) (reader io.Reader, filenam
 // CreateValidatingReader creates a reader that will return an error if the stream being read does not represent a valid csv file.
 func CreateValidatingReader(sourceReader io.Reader, context string) io.Reader {
 	pipeReader, pipeWriter := io.Pipe()
-	tee := io.TeeReader(sourceReader, pipeWriter)
-	csvReader := csv.NewReader(tee)
+	csvReader := csv.NewReader(sourceReader)
+	csvWriter := csv.NewWriter(pipeWriter)
 	// create a goroutine that will read from the csvReader and close the pipe if an error is returned by csvReader, or the number of fields isn't correct
 	go func() {
 		rowCount := 0
 		for {
-			rowCount++
 			row, err := csvReader.Read()
 			if err != nil {
+				csvWriter.Flush();
 				pipeWriter.CloseWithError(err)
-				log.DebugC(context, "Finished saving file to S3", log.Data{"rowCount": rowCount, "err": err})
+				log.DebugC(context, "Finished Reading file", log.Data{"rowCount": rowCount, "err": err})
 				return
 			}
 			if len(row)%3 != 0 {
 				message := fmt.Sprintf("Wrong number of fields in file at row %d - must be a multiple of 3, but was %d", rowCount, len(row))
+				csvWriter.Flush();
 				pipeWriter.CloseWithError(errors.New(message))
 				return
 			}
 			if rowCount%50000 == 0 {
 				log.DebugC(context, "Saving file to S3", log.Data{"rowCount": rowCount})
 			}
+			if (rowCount > 0 || row[0]!="Observation") {
+				csvWriter.Write(row);
+				rowCount++
+			}
+		}
+	}()
+	return pipeReader
+}
+
+type ByteMarker struct {
+	BlockNumber int
+	FirstRow int
+	LastRow int
+	FirstByte int
+	LastByte int
+}
+
+func ByteMarkRecorder(reader io.Reader, byteMarkers []ByteMarker, blockSize int, context string) io.Reader {
+	pipeReader, pipeWriter := io.Pipe()
+	go func() {
+		rowCount := 0
+		byteCount := 0
+		blockNumber :=1
+		currentBlock := ByteMarker{BlockNumber:1, FirstRow:1, FirstByte:0}
+		byteReader := bufio.NewReader(reader)
+		for {
+			line, readErr := byteReader.ReadBytes('\n')
+			_, writeErr := pipeWriter.Write(line)
+			if writeErr != nil {
+				log.ErrorC(context, writeErr, log.Data{"message": "Error writing to pipe"})
+				return
+			}
+			if readErr != nil {
+				pipeWriter.CloseWithError(readErr)
+				break
+			}
+			byteCount += len(line)
+			rowCount ++
+			if rowCount % blockSize == 0 {
+				currentBlock.LastRow = rowCount
+				currentBlock.LastByte = byteCount
+				byteMarkers = append(byteMarkers, currentBlock)
+				log.DebugC(context, "Sending block", log.Data{"block": currentBlock})
+				blockNumber++
+				currentBlock = ByteMarker{BlockNumber:blockNumber, FirstRow: rowCount+1, FirstByte:byteCount+1}
+			}
+		}
+		if (currentBlock.FirstRow <= rowCount) {
+			currentBlock.LastRow = rowCount
+			currentBlock.LastByte = byteCount
+			byteMarkers = append(byteMarkers, currentBlock)
+			log.DebugC(context, "Final block", log.Data{"block": currentBlock})
 		}
 	}()
 	return pipeReader
